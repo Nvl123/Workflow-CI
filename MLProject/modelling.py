@@ -41,12 +41,17 @@ os.makedirs(artifact_dir, exist_ok=True)
 
 # Periksa dan salin conda.yaml ke folder model_artifacts
 conda_yaml_path = "MLProject/conda.yaml"  # Path ke conda.yaml
-
-if not os.path.exists(conda_yaml_path):
-    print(f"File conda.yaml tidak ditemukan di path {conda_yaml_path}")
-else:
-    # Log artifact conda.yaml
+if os.path.exists(conda_yaml_path):
     mlflow.log_artifact(conda_yaml_path)
+else:
+    print(f"File conda.yaml tidak ditemukan di path {conda_yaml_path}")
+
+# Periksa dan log python_env.yaml jika ada
+python_env_yaml_path = "MLProject/python_env.yaml"  # Path ke python_env.yaml
+if os.path.exists(python_env_yaml_path):
+    mlflow.log_artifact(python_env_yaml_path)
+else:
+    print(f"File python_env.yaml tidak ditemukan di path {python_env_yaml_path}")
 
 # Mulai eksperimen MLflow
 with mlflow.start_run():
@@ -73,12 +78,10 @@ with mlflow.start_run():
     model_pkl_path = os.path.join(artifact_dir, "model.pkl")
     joblib.dump(model, model_pkl_path)
 
-    # Simpan artifact dari file yang sudah ada di dalam container
-    python_env_yaml_path = os.path.join(artifact_dir, "python_env.yaml")
+    # Log file-file artifact
     requirements_txt_path = os.path.join(artifact_dir, "requirements.txt")
 
-    # Log file-file artifact
-    mlflow.log_artifact(python_env_yaml_path)
+    # Log artefak yang ada
     mlflow.log_artifact(requirements_txt_path)
     mlflow.log_artifact(model_pkl_path)
 
