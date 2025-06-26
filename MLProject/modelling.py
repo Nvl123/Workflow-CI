@@ -39,6 +39,15 @@ artifact_dir = "/tmp/model_artifacts"  # Ubah direktori ke /tmp
 # Pastikan direktori ada
 os.makedirs(artifact_dir, exist_ok=True)
 
+# Periksa dan salin conda.yaml ke folder model_artifacts
+conda_yaml_path = "MLProject/conda.yaml"  # Path ke conda.yaml
+
+if not os.path.exists(conda_yaml_path):
+    print(f"File conda.yaml tidak ditemukan di path {conda_yaml_path}")
+else:
+    # Log artifact conda.yaml
+    mlflow.log_artifact(conda_yaml_path)
+
 # Mulai eksperimen MLflow
 with mlflow.start_run():
 
@@ -65,12 +74,10 @@ with mlflow.start_run():
     joblib.dump(model, model_pkl_path)
 
     # Simpan artifact dari file yang sudah ada di dalam container
-    conda_yaml_path = os.path.join(artifact_dir, "conda.yaml")
     python_env_yaml_path = os.path.join(artifact_dir, "python_env.yaml")
     requirements_txt_path = os.path.join(artifact_dir, "requirements.txt")
 
     # Log file-file artifact
-    mlflow.log_artifact(conda_yaml_path)
     mlflow.log_artifact(python_env_yaml_path)
     mlflow.log_artifact(requirements_txt_path)
     mlflow.log_artifact(model_pkl_path)
