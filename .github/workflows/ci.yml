@@ -35,7 +35,7 @@ jobs:
     - name: Run MLflow project
       run: |
         cd MLProject
-        export MLFLOW_TRACKING_URI=file:./mlruns  # Set URI untuk local tracking
+        export MLFLOW_TRACKING_URI=file:/tmp/mlruns  # Set URI untuk file-based tracking
         mlflow run . --env-manager=local  # Jalankan MLflow project di local
 
     # Get the latest MLflow run_id
@@ -43,7 +43,7 @@ jobs:
       id: get_run_id
       run: |
         cd MLProject
-        export MLFLOW_TRACKING_URI=file:./mlruns
+        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
         experiment_id=0  # Menentukan experiment_id (default = 0)
         echo "experiment_id=$experiment_id" >> $GITHUB_ENV
         run_id=$(ls -1t "./mlruns/$experiment_id" | grep -E '^[a-f0-9]{32}$' | head -n 1)
@@ -58,7 +58,7 @@ jobs:
     - name: Install additional dependencies (e.g., requests)
       run: pip install requests
 
-    # Upload MLflow artifacts (e.g., model, logs)
+    # Upload MLflow artifacts
     - name: Upload MLflow artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -69,7 +69,7 @@ jobs:
     - name: Build Docker image for MLflow model
       run: |
         cd MLProject
-        export MLFLOW_TRACKING_URI=file:./mlruns
+        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
         mlflow models build-docker -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" -n air_quality_model
 
     # Log in to Docker Hub
