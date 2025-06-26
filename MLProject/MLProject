@@ -1,5 +1,7 @@
-name: MLProject
-conda_env: conda.yaml 
+name: MyMLProject
+conda_env: conda.yaml  # Merujuk ke file conda.yaml untuk environment
 entry_points:
   main:
-    command: "python modelling.py"
+    command: "python modelling.py"  # Menjalankan script modelling.py
+    parameters:
+      fit_intercept: {type: bool, default: true}  # Menambahkan fit_intercept sebagai parameter yang relevan
