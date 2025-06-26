@@ -7,9 +7,15 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import numpy as np
 import joblib
 import os
+import argparse
 
 # Set tracking URI ke server MLflow
 mlflow.set_tracking_uri("http://localhost:5000")
+
+# Argparse untuk menerima parameter dari MLflow Project
+parser = argparse.ArgumentParser()
+parser.add_argument("--fit_intercept", type=bool, default=True, help="Whether to calculate the intercept for this model.")
+args = parser.parse_args()
 
 # Muat dataset
 df = pd.read_csv("air_quality_cleaned.csv")
@@ -21,7 +27,13 @@ y = df['AQI']  # Target
 # Split dataset menjadi data training dan testing
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Direktori untuk menyimpan artifact (gunakan folder yang diizinkan seperti /tmp)
+# Inisialisasi dan latih model regresi linear dengan parameter yang diterima
+model = LinearRegression(fit_intercept=args.fit_intercept)
+
+# Aktifkan MLflow autologging untuk scikit-learn
+mlflow.sklearn.autolog()
+
+# Direktori untuk menyimpan artifact
 artifact_dir = "/tmp/model_artifacts"  # Ubah direktori ke /tmp
 
 # Pastikan direktori ada
@@ -30,8 +42,7 @@ os.makedirs(artifact_dir, exist_ok=True)
 # Mulai eksperimen MLflow
 with mlflow.start_run():
 
-    # Inisialisasi dan latih model regresi linear
-    model = LinearRegression()
+    # Train model
     model.fit(X_train, y_train)
 
     # Prediksi dan evaluasi model
