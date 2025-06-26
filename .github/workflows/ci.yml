@@ -50,10 +50,10 @@ jobs:
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns  # Set URI untuk file-based tracking
         mlflow run . --env-manager=local  # Jalankan MLflow project di local
 
-    # Tunggu beberapa detik untuk memastikan run selesai dan direktori mlruns tersedia
+    # Tunggu lebih lama untuk memastikan MLflow run selesai
     - name: Wait for MLflow run to complete
       run: |
-        sleep 10  # Tunggu 10 detik untuk memastikan eksperimen selesai
+        sleep 20  # Tunggu 20 detik lebih lama untuk memastikan eksperimen selesai dan mlruns tersedia
 
     # Mendapatkan run_id terbaru dari MLflow
     - name: Get latest MLflow run_id
