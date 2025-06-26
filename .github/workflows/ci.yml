@@ -44,21 +44,12 @@ jobs:
         cp MLProject/python_env.yaml /tmp/model_artifacts/python_env.yaml
         cp MLProject/requirements.txt /tmp/model_artifacts/requirements.txt
 
-    # Setup MLflow tracking dan buat experiment
-    - name: Setup MLflow tracking and create experiment
-      run: |
-        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-        # Buat experiment default jika belum ada
-        mlflow experiments create --experiment-name "Default" --artifact-location /tmp/mlruns/0/artifacts || echo "Experiment already exists or using default"
-        # List experiments untuk verifikasi
-        mlflow experiments list
-
-    # Jalankan MLflow project (akan mengeksekusi `modelling.py`)
-    - name: Run MLflow project
+    # Jalankan training script langsung (bukan via MLflow project)
+    - name: Run training script
       run: |
         cd MLProject
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns  # Set URI untuk file-based tracking
-        mlflow run . --env-manager=local  # Jalankan MLflow project di local
+        python modelling.py --fit_intercept=True
 
     # Tunggu lebih lama untuk memastikan MLflow run selesai
     - name: Wait for MLflow run to complete
