@@ -9,8 +9,8 @@ import joblib
 import os
 import argparse
 
-# Set tracking URI ke server MLflow
-mlflow.set_tracking_uri("http://localhost:5000")
+# Set tracking URI ke server MLflow menggunakan file-based URI
+mlflow.set_tracking_uri("file:/tmp/mlruns")  # Gunakan lokasi berbasis file
 
 # Argparse untuk menerima parameter dari MLflow Project
 parser = argparse.ArgumentParser()
