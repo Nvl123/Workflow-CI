@@ -1,0 +1,8 @@
+name: model_env
+dependencies:
+  - python=3.9
+  - pip:
+      - scikit-learn
+      - pandas
+      - numpy
+      - mlflow
