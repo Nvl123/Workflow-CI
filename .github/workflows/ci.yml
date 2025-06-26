@@ -84,7 +84,20 @@ jobs:
         echo "experiment_id=$experiment_id" >> $GITHUB_ENV
         
         # Cari run_id dengan pattern yang benar
-        run_id=$(ls -1t "$experiment_dir" | grep -E '^[a-f0-9]{32}
+        run_id=$(ls -1t "$experiment_dir" | grep -E '^[a-f0-9]{32}')
+        
+        if [ -z "$run_id" ]; then
+          echo "Failed to get run_id. Available directories in experiment:"
+          ls -la "$experiment_dir"
+          # Coba pattern yang lebih fleksibel
+          run_id=$(ls -1t "$experiment_dir" | grep -v "meta.yaml" | head -n 1)
+          if [ -z "$run_id" ]; then
+            echo "Still no run_id found"
+            exit 1
+          fi
+        fi
+        echo "Latest run_id: $run_id"
+        echo "MLFLOW_RUN_ID=$run_id" >> $GITHUB_ENV
 
     # Instal dependensi tambahan jika diperlukan
     - name: Install additional dependencies (e.g., requests)
@@ -120,49 +133,4 @@ jobs:
 
     # Log out from Docker Hub
     - name: Log out from Docker Hub
-      run: docker logout | head -n 1)
-        if [ -z "$run_id" ]; then
-          echo "Failed to get run_id. Available directories in experiment:"
-          ls -la "$experiment_dir"
-          # Coba pattern yang lebih fleksibel
-          run_id=$(ls -1t "$experiment_dir" | grep -v "meta.yaml" | head -n 1)
-          if [ -z "$run_id" ]; then
-            echo "Still no run_id found"
-            exit 1
-          fi
-        fi
-        echo "Latest run_id: $run_id"
-        echo "MLFLOW_RUN_ID=$run_id" >> $GITHUB_ENV
-
-    # Instal dependensi tambahan jika diperlukan
-    - name: Install additional dependencies (e.g., requests)
-      run: pip install requests
-
-    # Upload artefak dari MLflow run (gunakan path absolut)
-    - name: Upload MLflow artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: mlartifacts
-        path: /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts
-
-    # Bangun Docker image untuk model MLflow
-    - name: Build Docker image for MLflow model
-      run: |
-        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-        mlflow models build-docker -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" -n air_quality_model
-
-    # Log in to Docker Hub
-    - name: Log in to Docker Hub
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-    # Tag Docker image
-    - name: Tag Docker image
-      run: docker tag air_quality_model ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
-
-    # Push Docker image ke Docker Hub
-    - name: Push Docker image to Docker Hub
-      run: docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
-
-    # Log out from Docker Hub
-    - name: Log out from Docker Hub
-      run: docker logout
+      run: docker logout | head -n 1
