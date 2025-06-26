@@ -2,12 +2,12 @@ name: CI - MLFlow
 
 on:
   push:
-    branches: [main]
+    branches: [main]  # Menjalankan workflow ketika ada push ke branch main
   workflow_dispatch:  # Menambahkan opsi untuk memicu workflow secara manual
 
 jobs:
   train_model:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Menjalankan di lingkungan Ubuntu terbaru
 
     steps:
     # Checkout repository
@@ -18,7 +18,7 @@ jobs:
     - name: Set up Python 3.9
       uses: actions/setup-python@v5
       with:
-        python-version: 3.9
+        python-version: 3.9  # Menetapkan versi Python yang digunakan
 
     # Verifikasi versi Python dan pip
     - name: Check Python and pip versions
@@ -29,16 +29,23 @@ jobs:
     # Install dependencies from requirements.txt
     - name: Install dependencies
       run: |
-        pip install -r MLProject/requirements.txt
+        pip install -r MLProject/requirements.txt  # Menginstal dependensi dari requirements.txt
 
-    # Run MLflow project (will execute `modelling.py`)
+    # Menyalin file artefak (conda.yaml, python_env.yaml, requirements.txt) ke direktori model_artifacts
+    - name: Copy conda.yaml, python_env.yaml, and requirements.txt to model_artifacts
+      run: |
+        cp MLProject/conda.yaml /tmp/model_artifacts/conda.yaml
+        cp MLProject/python_env.yaml /tmp/model_artifacts/python_env.yaml
+        cp MLProject/requirements.txt /tmp/model_artifacts/requirements.txt
+
+    # Jalankan MLflow project (akan mengeksekusi `modelling.py`)
     - name: Run MLflow project
       run: |
         cd MLProject
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns  # Set URI untuk file-based tracking
         mlflow run . --env-manager=local  # Jalankan MLflow project di local
 
-    # Get the latest MLflow run_id
+    # Mendapatkan run_id terbaru dari MLflow
     - name: Get latest MLflow run_id
       id: get_run_id
       run: |
@@ -54,18 +61,18 @@ jobs:
         echo "Latest run_id: $run_id"
         echo "MLFLOW_RUN_ID=$run_id" >> $GITHUB_ENV
 
-    # Install additional dependencies if needed
+    # Instal dependensi tambahan jika diperlukan
     - name: Install additional dependencies (e.g., requests)
       run: pip install requests
 
-    # Upload MLflow artifacts
+    # Upload artefak dari MLflow run
     - name: Upload MLflow artifacts
       uses: actions/upload-artifact@v4
       with:
         name: mlartifacts
         path: MLProject/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts
 
-    # Build Docker image for the MLflow model
+    # Bangun Docker image untuk model MLflow
     - name: Build Docker image for MLflow model
       run: |
         cd MLProject
@@ -80,7 +87,7 @@ jobs:
     - name: Tag Docker image
       run: docker tag air_quality_model ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
 
-    # Push Docker image to Docker Hub
+    # Push Docker image ke Docker Hub
     - name: Push Docker image to Docker Hub
       run: docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
 
