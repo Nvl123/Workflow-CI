@@ -1,0 +1,89 @@
+name: CI - MLFlow
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Menambahkan opsi untuk memicu workflow secara manual
+
+jobs:
+  train_model:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout repository
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    # Setup Python environment
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.9
+
+    # Verifikasi versi Python dan pip
+    - name: Check Python and pip versions
+      run: |
+        python --version
+        pip --version
+
+    # Install dependencies from requirements.txt
+    - name: Install dependencies
+      run: |
+        pip install -r MLProject/requirements.txt
+
+    # Run MLflow project (will execute `modelling.py`)
+    - name: Run MLflow project
+      run: |
+        cd MLProject
+        export MLFLOW_TRACKING_URI=file:./mlruns  # Set URI untuk local tracking
+        mlflow run . --env-manager=local  # Jalankan MLflow project di local
+
+    # Get the latest MLflow run_id
+    - name: Get latest MLflow run_id
+      id: get_run_id
+      run: |
+        cd MLProject
+        export MLFLOW_TRACKING_URI=file:./mlruns
+        experiment_id=0  # Menentukan experiment_id (default = 0)
+        echo "experiment_id=$experiment_id" >> $GITHUB_ENV
+        run_id=$(ls -1t "./mlruns/$experiment_id" | grep -E '^[a-f0-9]{32}$' | head -n 1)
+        if [ -z "$run_id" ]; then
+          echo "Failed to get run_id"
+          exit 1
+        fi
+        echo "Latest run_id: $run_id"
+        echo "MLFLOW_RUN_ID=$run_id" >> $GITHUB_ENV
+
+    # Install additional dependencies if needed
+    - name: Install additional dependencies (e.g., requests)
+      run: pip install requests
+
+    # Upload MLflow artifacts (e.g., model, logs)
+    - name: Upload MLflow artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: mlartifacts
+        path: MLProject/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts
+
+    # Build Docker image for the MLflow model
+    - name: Build Docker image for MLflow model
+      run: |
+        cd MLProject
+        export MLFLOW_TRACKING_URI=file:./mlruns
+        mlflow models build-docker -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" -n air_quality_model
+
+    # Log in to Docker Hub
+    - name: Log in to Docker Hub
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+    # Tag Docker image
+    - name: Tag Docker image
+      run: docker tag air_quality_model ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
+
+    # Push Docker image to Docker Hub
+    - name: Push Docker image to Docker Hub
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
+
+    # Log out from Docker Hub
+    - name: Log out from Docker Hub
+      run: docker logout
