@@ -2,7 +2,7 @@ name: CI - MLFlow
 
 on:
   push:
-    branches: [main]  # Menjalankan workflow ketika ada push ke branch main
+    branches: [main]
   workflow_dispatch:  # Menambahkan opsi untuk memicu workflow secara manual
 
 jobs:
@@ -30,6 +30,11 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r MLProject/requirements.txt  # Menginstal dependensi dari requirements.txt
+
+    # Membuat direktori untuk artefak
+    - name: Create directory for artifacts
+      run: |
+        mkdir -p /tmp/model_artifacts  # Membuat direktori model_artifacts di /tmp
 
     # Menyalin file artefak (conda.yaml, python_env.yaml, requirements.txt) ke direktori model_artifacts
     - name: Copy conda.yaml, python_env.yaml, and requirements.txt to model_artifacts
