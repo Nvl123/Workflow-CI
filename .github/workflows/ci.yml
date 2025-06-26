@@ -54,12 +54,14 @@ jobs:
     # Tunggu lebih lama untuk memastikan MLflow run selesai
     - name: Wait for MLflow run to complete
       run: |
-        sleep 10  # Kurangi waktu tunggu
+        sleep 5  # Tunggu sebentar
         echo "Checking MLruns directory structure:"
         ls -la /tmp/mlruns/ || echo "MLruns directory not found"
-        if [ -d "/tmp/mlruns/0" ]; then
-          echo "Found experiment 0:"
-          ls -la /tmp/mlruns/0/
+        if [ -d "/tmp/mlruns" ]; then
+          echo "Found MLruns directory, checking experiments:"
+          find /tmp/mlruns -name "*.yaml" -o -name "meta.yaml" | head -10
+          # List semua experiment directories
+          find /tmp/mlruns -type d -name "*[0-9]*" | head -5
         fi
 
     # Mendapatkan run_id terbaru dari MLflow
@@ -67,23 +69,67 @@ jobs:
       id: get_run_id
       run: |
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-        experiment_id=0  # Menentukan experiment_id (default = 0)
-        echo "experiment_id=$experiment_id" >> $GITHUB_ENV
         
-        # Pastikan direktori mlruns/0 ada sebelum mencari run_id (gunakan path absolut)
-        if [ ! -d "/tmp/mlruns/$experiment_id" ]; then
-          echo "No such directory /tmp/mlruns/$experiment_id"
-          echo "Checking available directories:"
-          ls -la /tmp/mlruns/ || echo "MLruns directory not accessible"
+        # Cari experiment directory yang ada
+        experiment_dir=$(find /tmp/mlruns -type d -name "*[0-9]*" | head -1)
+        if [ -z "$experiment_dir" ]; then
+          echo "No experiment directory found"
+          echo "Available directories in /tmp/mlruns:"
+          ls -la /tmp/mlruns/ || echo "MLruns not accessible"
           exit 1
         fi
         
+        experiment_id=$(basename "$experiment_dir")
+        echo "Found experiment directory: $experiment_dir"
+        echo "experiment_id=$experiment_id" >> $GITHUB_ENV
+        
         # Cari run_id dengan pattern yang benar
-        run_id=$(ls -1t "/tmp/mlruns/$experiment_id" | grep -E '^[a-f0-9]{32}$' | head -n 1)
+        run_id=$(ls -1t "$experiment_dir" | grep -E '^[a-f0-9]{32}
+
+    # Instal dependensi tambahan jika diperlukan
+    - name: Install additional dependencies (e.g., requests)
+      run: pip install requests
+
+    # Upload artefak dari MLflow run (gunakan path absolut)
+    - name: Upload MLflow artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: mlartifacts
+        path: /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts
+      continue-on-error: true  # Lanjutkan meskipun upload gagal
+
+    # Bangun Docker image untuk model MLflow
+    - name: Build Docker image for MLflow model
+      run: |
+        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+        # Coba build docker image, jika gagal skip
+        mlflow models build-docker -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" -n air_quality_model || echo "Docker build failed, but continuing"
+      continue-on-error: true
+
+    # Log in to Docker Hub
+    - name: Log in to Docker Hub
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+    # Tag Docker image
+    - name: Tag Docker image
+      run: docker tag air_quality_model ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
+
+    # Push Docker image ke Docker Hub
+    - name: Push Docker image to Docker Hub
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
+
+    # Log out from Docker Hub
+    - name: Log out from Docker Hub
+      run: docker logout | head -n 1)
         if [ -z "$run_id" ]; then
-          echo "Failed to get run_id. Available directories:"
-          ls -la "/tmp/mlruns/$experiment_id"
-          exit 1
+          echo "Failed to get run_id. Available directories in experiment:"
+          ls -la "$experiment_dir"
+          # Coba pattern yang lebih fleksibel
+          run_id=$(ls -1t "$experiment_dir" | grep -v "meta.yaml" | head -n 1)
+          if [ -z "$run_id" ]; then
+            echo "Still no run_id found"
+            exit 1
+          fi
         fi
         echo "Latest run_id: $run_id"
         echo "MLFLOW_RUN_ID=$run_id" >> $GITHUB_ENV
