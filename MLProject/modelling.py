@@ -8,6 +8,7 @@ import numpy as np
 import joblib
 import os
 import argparse
+import shutil
 
 # Set tracking URI ke server MLflow menggunakan file-based URI
 mlflow.set_tracking_uri("file:/tmp/mlruns")  # Gunakan lokasi berbasis file
@@ -39,19 +40,18 @@ artifact_dir = "/tmp/model_artifacts"  # Ubah direktori ke /tmp
 # Pastikan direktori ada
 os.makedirs(artifact_dir, exist_ok=True)
 
-# Periksa dan salin conda.yaml ke folder model_artifacts
-conda_yaml_path = "MLProject/conda.yaml"  # Path ke conda.yaml
-if os.path.exists(conda_yaml_path):
-    mlflow.log_artifact(conda_yaml_path)
-else:
-    print(f"File conda.yaml tidak ditemukan di path {conda_yaml_path}")
+# Memeriksa dan menyalin file-file artefak (conda.yaml, python_env.yaml, requirements.txt)
+def copy_file_to_artifact(file_path, artifact_dir):
+    if os.path.exists(file_path):
+        shutil.copy2(file_path, os.path.join(artifact_dir, os.path.basename(file_path)))
+        print(f"File {file_path} berhasil disalin ke {artifact_dir}")
+    else:
+        print(f"File {file_path} tidak ditemukan!")
 
-# Periksa dan log python_env.yaml jika ada
-python_env_yaml_path = "MLProject/python_env.yaml"  # Path ke python_env.yaml
-if os.path.exists(python_env_yaml_path):
-    mlflow.log_artifact(python_env_yaml_path)
-else:
-    print(f"File python_env.yaml tidak ditemukan di path {python_env_yaml_path}")
+# Pastikan file conda.yaml, python_env.yaml, dan requirements.txt ada
+copy_file_to_artifact("MLProject/conda.yaml", artifact_dir)
+copy_file_to_artifact("MLProject/python_env.yaml", artifact_dir)
+copy_file_to_artifact("MLProject/requirements.txt", artifact_dir)
 
 # Mulai eksperimen MLflow
 with mlflow.start_run():
@@ -79,10 +79,9 @@ with mlflow.start_run():
     joblib.dump(model, model_pkl_path)
 
     # Log file-file artifact
-    requirements_txt_path = os.path.join(artifact_dir, "requirements.txt")
-
-    # Log artefak yang ada
-    mlflow.log_artifact(requirements_txt_path)
+    mlflow.log_artifact(os.path.join(artifact_dir, "conda.yaml"))
+    mlflow.log_artifact(os.path.join(artifact_dir, "python_env.yaml"))
+    mlflow.log_artifact(os.path.join(artifact_dir, "requirements.txt"))
     mlflow.log_artifact(model_pkl_path)
 
     # Simpan model ke dalam format MLflow
