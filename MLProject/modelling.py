@@ -21,11 +21,8 @@ y = df['AQI']  # Target
 # Split dataset menjadi data training dan testing
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Aktifkan MLflow autologging untuk scikit-learn
-mlflow.sklearn.autolog()
-
-# Direktori untuk menyimpan artifact
-artifact_dir = "/app/model_artifacts"
+# Direktori untuk menyimpan artifact (gunakan folder yang diizinkan seperti /tmp)
+artifact_dir = "/tmp/model_artifacts"  # Ubah direktori ke /tmp
 
 # Pastikan direktori ada
 os.makedirs(artifact_dir, exist_ok=True)
