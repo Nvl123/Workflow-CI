@@ -50,6 +50,11 @@ jobs:
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns  # Set URI untuk file-based tracking
         mlflow run . --env-manager=local  # Jalankan MLflow project di local
 
+    # Tunggu beberapa detik untuk memastikan run selesai dan direktori mlruns tersedia
+    - name: Wait for MLflow run to complete
+      run: |
+        sleep 10  # Tunggu 10 detik untuk memastikan eksperimen selesai
+
     # Mendapatkan run_id terbaru dari MLflow
     - name: Get latest MLflow run_id
       id: get_run_id
@@ -58,6 +63,13 @@ jobs:
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns
         experiment_id=0  # Menentukan experiment_id (default = 0)
         echo "experiment_id=$experiment_id" >> $GITHUB_ENV
+        
+        # Pastikan direktori mlruns/0 ada sebelum mencari run_id
+        if [ ! -d "./mlruns/$experiment_id" ]; then
+          echo "No such directory ./mlruns/$experiment_id"
+          exit 1
+        fi
+        
         run_id=$(ls -1t "./mlruns/$experiment_id" | grep -E '^[a-f0-9]{32}$' | head -n 1)
         if [ -z "$run_id" ]; then
           echo "Failed to get run_id"
