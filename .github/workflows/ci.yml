@@ -70,19 +70,21 @@ jobs:
         run: |
           export MLFLOW_TRACKING_URI=file:/tmp/mlruns
 
-          experiment_id=$(mlflow experiments search --view active_only -v json | python3 -c 'import json, sys
-data = sys.stdin.read()
-if not data.strip():
-    print("")
-else:
-    try:
-        experiments = json.loads(data)
-        for exp in experiments:
-            if exp.get("name") == "Air_Quality_Model":
-                print(exp["experiment_id"])
-                break
-    except:
-        print("")')
+          experiment_id=$(mlflow experiments search --view active_only -v json | python3 -c "
+          import json, sys
+          data = sys.stdin.read()
+          if not data.strip():
+              print('')
+          else:
+              try:
+                  experiments = json.loads(data)
+                  for exp in experiments:
+                      if exp.get('name') == 'Air_Quality_Model':
+                          print(exp['experiment_id'])
+                          break
+              except:
+                  print('')
+          ")
 
           if [ -z "$experiment_id" ]; then
             echo "Experiment not found or MLflow output error."
@@ -91,17 +93,19 @@ else:
 
           echo "experiment_id=$experiment_id" >> $GITHUB_ENV
 
-          run_id=$(mlflow runs list --experiment-id $experiment_id --output-format json | python3 -c 'import json, sys
-data = sys.stdin.read()
-if not data.strip():
-    print("")
-else:
-    try:
-        runs = json.loads(data)
-        if runs:
-            print(runs[0]["run_id"])
-    except:
-        print("")')
+          run_id=$(mlflow runs list --experiment-id $experiment_id --output-format json | python3 -c "
+          import json, sys
+          data = sys.stdin.read()
+          if not data.strip():
+              print('')
+          else:
+              try:
+                  runs = json.loads(data)
+                  if runs:
+                      print(runs[0]['run_id'])
+              except:
+                  print('')
+          ")
 
           if [ -z "$run_id" ]; then
             echo "No runs found"
