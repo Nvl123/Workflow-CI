@@ -1,10 +1,15 @@
+name: mlflow-air-quality
 channels:
   - defaults
+  - conda-forge
 dependencies:
   - python=3.9
-  - scikit-learn
-  - pandas
-  - numpy
-  - mlflow
+  - pip
   - pip:
-      - mlflow
+    - mlflow==2.10.2
+    - scikit-learn==1.3.2
+    - pandas==2.1.4
+    - numpy==1.24.4
+    - joblib==1.3.2
+    - matplotlib==3.8.2
+    - seaborn==0.13.0
