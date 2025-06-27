@@ -30,6 +30,9 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r MLProject/requirements.txt  # Menginstal dependensi dari requirements.txt
+        
+    - name: Upgrade MLflow
+      run: pip install --upgrade mlflow
 
     # Membuat direktori untuk artefak
     - name: Create directory for artifacts
