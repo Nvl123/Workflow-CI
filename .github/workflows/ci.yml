@@ -31,7 +31,7 @@ jobs:
       - name: Install MLflow
         run: |
           pip install --upgrade pip
-          pip install mlflow==2.10.2
+          pip install mlflow==2.10.2 pandas
 
       - name: Install dependencies
         run: |
@@ -69,46 +69,63 @@ jobs:
         id: get_run_id
         run: |
           export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-
-          experiment_id=$(mlflow experiments search --view active_only -v json | python3 -c "
-          import json, sys
-          data = sys.stdin.read()
-          if not data.strip():
-              print('')
-          else:
-              try:
-                  experiments = json.loads(data)
-                  for exp in experiments:
-                      if exp.get('name') == 'Air_Quality_Model':
-                          print(exp['experiment_id'])
-                          break
-              except:
+          
+          # Get experiment ID using a more reliable method
+          experiment_id=$(python3 -c "
+          import mlflow
+          mlflow.set_tracking_uri('file:/tmp/mlruns')
+          try:
+              experiment = mlflow.get_experiment_by_name('Air_Quality_Model')
+              if experiment:
+                  print(experiment.experiment_id)
+              else:
                   print('')
+          except:
+              print('')
           ")
 
           if [ -z "$experiment_id" ]; then
-            echo "Experiment not found or MLflow output error."
+            echo "Experiment not found. Trying to create it..."
+            experiment_id=$(python3 -c "
+            import mlflow
+            mlflow.set_tracking_uri('file:/tmp/mlruns')
+            try:
+                exp_id = mlflow.create_experiment('Air_Quality_Model')
+                print(exp_id)
+            except:
+                # Experiment might already exist
+                experiment = mlflow.get_experiment_by_name('Air_Quality_Model')
+                if experiment:
+                    print(experiment.experiment_id)
+                else:
+                    print('')
+            ")
+          fi
+
+          if [ -z "$experiment_id" ]; then
+            echo "Could not get or create experiment"
             exit 1
           fi
 
           echo "experiment_id=$experiment_id" >> $GITHUB_ENV
+          echo "Found experiment_id: $experiment_id"
 
-          run_id=$(mlflow runs list --experiment-id $experiment_id --output-format json | python3 -c "
-          import json, sys
-          data = sys.stdin.read()
-          if not data.strip():
-              print('')
-          else:
-              try:
-                  runs = json.loads(data)
-                  if runs:
-                      print(runs[0]['run_id'])
-              except:
+          # Get the latest run ID
+          run_id=$(python3 -c "
+          import mlflow
+          mlflow.set_tracking_uri('file:/tmp/mlruns')
+          try:
+              runs = mlflow.search_runs(experiment_ids=['$experiment_id'], max_results=1)
+              if len(runs) > 0:
+                  print(runs.iloc[0]['run_id'])
+              else:
                   print('')
+          except:
+              print('')
           ")
 
           if [ -z "$run_id" ]; then
-            echo "No runs found"
+            echo "No runs found in experiment"
             exit 1
           fi
 
