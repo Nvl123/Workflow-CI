@@ -10,172 +10,168 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Checkout repository
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-    # Setup Python environment
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.9
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
 
-    # Install system dependencies
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
 
-    # Verify Python and pip versions
-    - name: Check Python and pip versions
-      run: |
-        python --version
-        pip --version
+      - name: Check Python and pip versions
+        run: |
+          python --version
+          pip --version
 
-    # Install MLflow first
-    - name: Install MLflow
-      run: |
-        pip install --upgrade pip
-        pip install mlflow==2.10.2
+      - name: Install MLflow
+        run: |
+          pip install --upgrade pip
+          pip install mlflow==2.10.2
 
-    # Install dependencies from requirements.txt
-    - name: Install dependencies
-      run: |
-        pip install -r MLProject/requirements.txt
+      - name: Install dependencies
+        run: |
+          pip install -r MLProject/requirements.txt
 
-    # Create directories for artifacts
-    - name: Create directories
-      run: |
-        mkdir -p /tmp/mlruns
-        mkdir -p /tmp/model_artifacts
+      - name: Create directories
+        run: |
+          mkdir -p /tmp/mlruns
+          mkdir -p /tmp/model_artifacts
 
-    # Copy necessary files to MLProject directory
-    - name: Prepare MLProject files
-      run: |
-        # Ensure all required files are in MLProject directory
-        ls -la MLProject/
-        
-        # Copy dataset if it exists in root
-        if [ -f "air_quality_cleaned.csv" ]; then
-          cp air_quality_cleaned.csv MLProject/
-        fi
+      - name: Prepare MLProject files
+        run: |
+          ls -la MLProject/
+          if [ -f "air_quality_cleaned.csv" ]; then
+            cp air_quality_cleaned.csv MLProject/
+          fi
 
-    # Run MLflow project (with no-conda flag for compatibility)
-    - name: Run MLflow project training
-      run: |
-        cd MLProject
-        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-        mlflow run . -P fit_intercept=True --experiment-name "Air_Quality_Model" --env-manager=local
-      env:
-        MLFLOW_TRACKING_URI: file:/tmp/mlruns
+      - name: Run MLflow project training
+        run: |
+          cd MLProject
+          export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+          mlflow run . -P fit_intercept=True --experiment-name "Air_Quality_Model" --env-manager=local
+        env:
+          MLFLOW_TRACKING_URI: file:/tmp/mlruns
 
-    # Verify MLflow run completion
-    - name: Verify MLflow run
-      run: |
-        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-        echo "Listing experiments:"
-        mlflow experiments search
-        echo "Listing runs:"
-        mlflow runs list --experiment-name "Air_Quality_Model" | head -10
+      - name: Verify MLflow run
+        run: |
+          export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+          echo "Listing experiments:"
+          mlflow experiments search
+          echo "Listing runs:"
+          mlflow runs list --experiment-name "Air_Quality_Model" | head -10
 
-    # Get latest MLflow run_id
-    - name: Get latest MLflow run_id
-      id: get_run_id
-      run: |
-        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-        
-        # Get experiment ID
-        experiment_id=$(mlflow experiments search -v json --view-type ACTIVE_ONLY -v json | python3 -c "
-        import json, sys
-        experiments = json.load(sys.stdin)
+      - name: Get latest MLflow run_id
+        id: get_run_id
+        run: |
+          export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+
+          # Get experiment ID
+          experiment_id=$(mlflow experiments search --view active_only -v json | python3 -c "
+import json, sys
+try:
+    data = sys.stdin.read()
+    if not data.strip():
+        print('')
+    else:
+        experiments = json.loads(data)
         for exp in experiments:
             if exp.get('name') == 'Air_Quality_Model':
                 print(exp['experiment_id'])
                 break
-        ")
-        
-        if [ -z "$experiment_id" ]; then
-          echo "Experiment not found, using default"
-          experiment_id="0"
-        fi
-        
-        echo "experiment_id=$experiment_id" >> $GITHUB_ENV
-        
-        # Get latest run ID
-        run_id=$(mlflow runs list --experiment-id $experiment_id --output-format json | python3 -c "
-        import json, sys
-        runs = json.load(sys.stdin)
+except:
+    print('')
+")
+
+          if [ -z \"$experiment_id\" ]; then
+            echo \"Experiment not found or MLflow output error.\"
+            exit 1
+          fi
+
+          echo \"experiment_id=$experiment_id\" >> $GITHUB_ENV
+
+          # Get latest run ID
+          run_id=$(mlflow runs list --experiment-id $experiment_id --output-format json | python3 -c "
+import json, sys
+try:
+    data = sys.stdin.read()
+    if not data.strip():
+        print('')
+    else:
+        runs = json.loads(data)
         if runs:
             print(runs[0]['run_id'])
-        ")
-        
-        if [ -z "$run_id" ]; then
-          echo "No runs found"
-          exit 1
-        fi
-        
-        echo "MLFLOW_RUN_ID=$run_id" >> $GITHUB_ENV
-        echo "Found run_id: $run_id"
+except:
+    print('')
+")
 
-    # Upload MLflow artifacts
-    - name: Upload MLflow artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: mlflow-artifacts
-        path: /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts
-        retention-days: 30
-      continue-on-error: true
+          if [ -z \"$run_id\" ]; then
+            echo \"No runs found\"
+            exit 1
+          fi
 
-    # Build Docker image (optional)
-    - name: Build Docker image for MLflow model
-      run: |
-        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-        echo "Attempting to build Docker image..."
-        mlflow models build-docker \
-          -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" \
-          -n air_quality_model \
-          --enable-mlserver || echo "Docker build failed, continuing..."
-      continue-on-error: true
+          echo \"MLFLOW_RUN_ID=$run_id\" >> $GITHUB_ENV
+          echo \"Found run_id: $run_id\"
 
-    # Docker Hub operations (only if secrets are available)
-    - name: Check Docker Hub secrets
-      id: check_secrets
-      run: |
-        if [ -n "${{ secrets.DOCKER_USERNAME }}" ] && [ -n "${{ secrets.DOCKER_PASSWORD }}" ]; then
-          echo "docker_secrets_available=true" >> $GITHUB_OUTPUT
-        else
-          echo "docker_secrets_available=false" >> $GITHUB_OUTPUT
-          echo "Docker Hub secrets not available, skipping Docker operations"
-        fi
+      - name: Upload MLflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-artifacts
+          path: /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts
+          retention-days: 30
+        continue-on-error: true
 
-    - name: Log in to Docker Hub
-      if: steps.check_secrets.outputs.docker_secrets_available == 'true'
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Build Docker image for MLflow model
+        run: |
+          export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+          echo "Attempting to build Docker image..."
+          mlflow models build-docker \
+            -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" \
+            -n air_quality_model \
+            --enable-mlserver || echo "Docker build failed, continuing..."
+        continue-on-error: true
 
-    - name: Tag and push Docker image
-      if: steps.check_secrets.outputs.docker_secrets_available == 'true'
-      run: |
-        if docker images | grep -q air_quality_model; then
-          docker tag air_quality_model ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
-          echo "Docker image pushed successfully"
-        else
-          echo "Docker image not found, skipping push"
-        fi
-      continue-on-error: true
+      - name: Check Docker Hub secrets
+        id: check_secrets
+        run: |
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ] && [ -n "${{ secrets.DOCKER_PASSWORD }}" ]; then
+            echo "docker_secrets_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "docker_secrets_available=false" >> $GITHUB_OUTPUT
+            echo "Docker Hub secrets not available, skipping Docker operations"
+          fi
 
-    - name: Log out from Docker Hub
-      if: steps.check_secrets.outputs.docker_secrets_available == 'true'
-      run: docker logout
+      - name: Log in to Docker Hub
+        if: steps.check_secrets.outputs.docker_secrets_available == 'true'
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-    # Summary
-    - name: Training Summary
-      run: |
-        echo "=== MLflow Training Summary ==="
-        echo "Experiment ID: ${{ env.experiment_id }}"
-        echo "Run ID: ${{ env.MLFLOW_RUN_ID }}"
-        echo "Tracking URI: file:/tmp/mlruns"
-        echo "Artifacts uploaded to GitHub Actions"
-        if [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then
-          echo "Docker image: ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest"
-        fi
+      - name: Tag and push Docker image
+        if: steps.check_secrets.outputs.docker_secrets_available == 'true'
+        run: |
+          if docker images | grep -q air_quality_model; then
+            docker tag air_quality_model ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
+            docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
+            echo "Docker image pushed successfully"
+          else
+            echo "Docker image not found, skipping push"
+          fi
+        continue-on-error: true
+
+      - name: Log out from Docker Hub
+        if: steps.check_secrets.outputs.docker_secrets_available == 'true'
+        run: docker logout
+
+      - name: Training Summary
+        run: |
+          echo "=== MLflow Training Summary ==="
+          echo "Experiment ID: ${{ env.experiment_id }}"
+          echo "Run ID: ${{ env.MLFLOW_RUN_ID }}"
+          echo "Tracking URI: file:/tmp/mlruns"
+          echo "Artifacts uploaded to GitHub Actions"
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then
+            echo "Docker image: ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest"
+          fi
