@@ -85,7 +85,7 @@ jobs:
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns
         
         # Get experiment ID
-        experiment_id=$(mlflow experiments search --max-results 1000 --view-type ACTIVE_ONLY -v json | python3 -c "
+        experiment_id=$(mlflow experiments search -v json --view-type ACTIVE_ONLY -v json | python3 -c "
         import json, sys
         experiments = json.load(sys.stdin)
         for exp in experiments:
