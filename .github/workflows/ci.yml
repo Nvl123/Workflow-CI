@@ -74,7 +74,7 @@ jobs:
       run: |
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns
         echo "Listing experiments:"
-        mlflow experiments list
+        mlflow experiments search
         echo "Listing runs:"
         mlflow runs list --experiment-name "Air_Quality_Model" | head -10
 
