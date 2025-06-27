@@ -1,7 +1,5 @@
+python: "3.9"
+build_dependencies:
+  - pip
 dependencies:
-  - python=3.9
-  - pip:
-      - scikit-learn
-      - pandas
-      - numpy
-      - mlflow
+  - -r requirements.txt
