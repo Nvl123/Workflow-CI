@@ -218,10 +218,7 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # Install system dependencies and Python packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir mlflow==2.10.2 pandas scikit-learn
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && pip install --no-cache-dir mlflow==2.10.2 pandas scikit-learn
 
 # Copy model artifacts (from build context)
 COPY model /app/model
@@ -230,8 +227,7 @@ COPY model /app/model
 EXPOSE 5000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD curl -f http://localhost:5000/health || exit 1
 
 # Run MLflow model server
 CMD ["mlflow", "models", "serve", "-m", "/app/model", "-h", "0.0.0.0", "-p", "5000", "--no-conda"]
