@@ -1,4 +1,4 @@
 scikit-learn
 pandas
 numpy
-mlflow
+mlflow==2.19.0
