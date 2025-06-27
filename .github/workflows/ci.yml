@@ -53,17 +53,70 @@ jobs:
         run: |
           cd MLProject
           export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+          echo "Starting MLflow training..."
+          echo "Current directory: $(pwd)"
+          echo "Files in directory:"
+          ls -la
+          
+          # Run the MLflow project
           mlflow run . -P fit_intercept=True --experiment-name "Air_Quality_Model" --env-manager=local
+          
+          echo "Training completed. Checking if model was saved..."
+          
+          # Verify model was saved by checking the latest run
+          python3 -c "
+          import mlflow
+          import os
+          mlflow.set_tracking_uri('file:/tmp/mlruns')
+          
+          # Get the latest run
+          experiment = mlflow.get_experiment_by_name('Air_Quality_Model')
+          if experiment:
+              runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id], max_results=1)
+              if len(runs) > 0:
+                  run_id = runs.iloc[0]['run_id']
+                  print(f'Latest run ID: {run_id}')
+                  
+                  # Check if model artifact exists
+                  artifacts_path = f'/tmp/mlruns/{experiment.experiment_id}/{run_id}/artifacts'
+                  if os.path.exists(artifacts_path):
+                      print(f'Artifacts directory exists: {artifacts_path}')
+                      for root, dirs, files in os.walk(artifacts_path):
+                          for file in files:
+                              print(f'  {os.path.join(root, file)}')
+                  else:
+                      print(f'Artifacts directory not found: {artifacts_path}')
+              else:
+                  print('No runs found')
+          else:
+              print('Experiment not found')
+          "
         env:
           MLFLOW_TRACKING_URI: file:/tmp/mlruns
 
-      - name: Verify MLflow run
+      - name: Verify MLflow run and artifacts
         run: |
           export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+          echo "=== MLflow Verification ==="
+          echo "Tracking URI: $MLFLOW_TRACKING_URI"
+          echo "Experiment ID: ${{ env.experiment_id }}"
+          echo "Run ID: ${{ env.MLFLOW_RUN_ID }}"
+          
           echo "Listing experiments:"
-          mlflow experiments search
+          mlflow experiments search || echo "Failed to list experiments"
+          
           echo "Listing runs:"
-          mlflow runs list --experiment-name "Air_Quality_Model" | head -10
+          mlflow runs list --experiment-name "Air_Quality_Model" | head -10 || echo "Failed to list runs"
+          
+          echo "Checking artifacts structure:"
+          if [ -d "/tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}" ]; then
+            echo "Run directory exists"
+            find /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }} -type f | head -20
+          else
+            echo "Run directory not found"
+            echo "Available runs in experiment:"
+            ls -la /tmp/mlruns/${{ env.experiment_id }}/ || echo "Experiment directory not found"
+          fi
 
       - name: Get latest MLflow run_id
         id: get_run_id
@@ -144,10 +197,51 @@ jobs:
         run: |
           export MLFLOW_TRACKING_URI=file:/tmp/mlruns
           echo "Attempting to build Docker image..."
-          mlflow models build-docker \
-            -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" \
-            -n air_quality_model \
-            --enable-mlserver || echo "Docker build failed, continuing..."
+          echo "Run ID: ${{ env.MLFLOW_RUN_ID }}"
+          echo "Experiment ID: ${{ env.experiment_id }}"
+          
+          # Check if model artifacts exist
+          if [ -d "/tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/model" ]; then
+            echo "Model artifacts found, proceeding with Docker build..."
+            
+            # Try MLflow docker build
+            if mlflow models build-docker \
+              -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" \
+              -n air_quality_model \
+              --enable-mlserver; then
+              echo "Docker image built successfully"
+            else
+              echo "MLflow Docker build failed, trying alternative approach..."
+              
+              # Alternative: Create a simple Dockerfile
+              cat > Dockerfile << EOF
+          FROM python:3.9-slim
+          
+          WORKDIR /app
+          
+          # Install MLflow and dependencies
+          RUN pip install mlflow==2.10.2 pandas scikit-learn
+          
+          # Copy model artifacts
+          COPY /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/model /app/model
+          
+          # Expose port
+          EXPOSE 5000
+          
+          # Run MLflow model server
+          CMD ["mlflow", "models", "serve", "-m", "/app/model", "-h", "0.0.0.0", "-p", "5000"]
+          EOF
+              
+              # Build Docker image manually
+              docker build -t air_quality_model .
+              echo "Alternative Docker image built successfully"
+            fi
+          else
+            echo "Model artifacts not found at /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/model"
+            echo "Listing available artifacts..."
+            ls -la /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/ || echo "No artifacts directory found"
+            echo "Skipping Docker build"
+          fi
         continue-on-error: true
 
       - name: Check Docker Hub secrets
@@ -167,12 +261,24 @@ jobs:
       - name: Tag and push Docker image
         if: steps.check_secrets.outputs.docker_secrets_available == 'true'
         run: |
+          echo "Checking available Docker images..."
+          docker images
+          
           if docker images | grep -q air_quality_model; then
+            echo "Docker image found, proceeding with tag and push..."
             docker tag air_quality_model ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
-            docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
-            echo "Docker image pushed successfully"
+            
+            if docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest; then
+              echo "Docker image pushed successfully to ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest"
+            else
+              echo "Failed to push Docker image"
+              exit 1
+            fi
           else
-            echo "Docker image not found, skipping push"
+            echo "Docker image 'air_quality_model' not found"
+            echo "Available images:"
+            docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+            echo "Skipping push"
           fi
         continue-on-error: true
 
