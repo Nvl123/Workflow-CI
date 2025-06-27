@@ -48,7 +48,7 @@ jobs:
     - name: Run MLflow project training
       run: |
         export MLFLOW_TRACKING_URI=file:/tmp/mlruns
-        mlflow run MLProject -P fit_intercept=True --experiment-name "Default" --no-conda
+        mlflow run MLProject -P fit_intercept=True --experiment-name "Default"
 
 
     # Tunggu lebih lama untuk memastikan MLflow run selesai
