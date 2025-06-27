@@ -39,9 +39,8 @@ jobs:
         mkdir -p /tmp/mlruns           # Pastikan direktori mlruns ada
 
     # Menyalin file artefak (conda.yaml, python_env.yaml, requirements.txt) ke direktori model_artifacts
-    - name: Copy conda.yaml, python_env.yaml, and requirements.txt to model_artifacts
+    - name: Copy requirements.txt to model_artifacts
       run: |
-        cp MLProject/python_env.yaml /tmp/model_artifacts/python_env.yaml
         cp MLProject/requirements.txt /tmp/model_artifacts/requirements.txt
 
    
