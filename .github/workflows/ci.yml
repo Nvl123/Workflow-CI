@@ -1,4 +1,4 @@
-name: CI - MLFlow
+name: CI - MLflow
 
 on:
   push:
@@ -70,52 +70,46 @@ jobs:
         run: |
           export MLFLOW_TRACKING_URI=file:/tmp/mlruns
 
-          # Get experiment ID
-          experiment_id=$(mlflow experiments search --view active_only -v json | python3 -c "
-import json, sys
-try:
-    data = sys.stdin.read()
-    if not data.strip():
-        print('')
-    else:
+          experiment_id=$(mlflow experiments search --view active_only -v json | python3 -c 'import json, sys
+data = sys.stdin.read()
+if not data.strip():
+    print("")
+else:
+    try:
         experiments = json.loads(data)
         for exp in experiments:
-            if exp.get('name') == 'Air_Quality_Model':
-                print(exp['experiment_id'])
+            if exp.get("name") == "Air_Quality_Model":
+                print(exp["experiment_id"])
                 break
-except:
-    print('')
-")
+    except:
+        print("")')
 
-          if [ -z \"$experiment_id\" ]; then
-            echo \"Experiment not found or MLflow output error.\"
+          if [ -z "$experiment_id" ]; then
+            echo "Experiment not found or MLflow output error."
             exit 1
           fi
 
-          echo \"experiment_id=$experiment_id\" >> $GITHUB_ENV
+          echo "experiment_id=$experiment_id" >> $GITHUB_ENV
 
-          # Get latest run ID
-          run_id=$(mlflow runs list --experiment-id $experiment_id --output-format json | python3 -c "
-import json, sys
-try:
-    data = sys.stdin.read()
-    if not data.strip():
-        print('')
-    else:
+          run_id=$(mlflow runs list --experiment-id $experiment_id --output-format json | python3 -c 'import json, sys
+data = sys.stdin.read()
+if not data.strip():
+    print("")
+else:
+    try:
         runs = json.loads(data)
         if runs:
-            print(runs[0]['run_id'])
-except:
-    print('')
-")
+            print(runs[0]["run_id"])
+    except:
+        print("")')
 
-          if [ -z \"$run_id\" ]; then
-            echo \"No runs found\"
+          if [ -z "$run_id" ]; then
+            echo "No runs found"
             exit 1
           fi
 
-          echo \"MLFLOW_RUN_ID=$run_id\" >> $GITHUB_ENV
-          echo \"Found run_id: $run_id\"
+          echo "MLFLOW_RUN_ID=$run_id" >> $GITHUB_ENV
+          echo "Found run_id: $run_id"
 
       - name: Upload MLflow artifacts
         uses: actions/upload-artifact@v4
