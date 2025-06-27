@@ -195,6 +195,67 @@ jobs:
 
 
 
+      - name: Check Docker Hub secrets
+        id: check_secrets
+        run: |
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ] && [ -n "${{ secrets.DOCKER_PASSWORD }}" ]; then
+            echo "docker_secrets_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "docker_secrets_available=false" >> $GITHUB_OUTPUT
+            echo "Docker Hub secrets not available, skipping Docker operations"
+          fi
+
+      - name: Build and Push Docker image
+        if: steps.check_secrets.outputs.docker_secrets_available == 'true'
+        run: |
+          export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+          echo "Building Docker image for MLflow model..."
+          
+          # Check if model artifacts exist
+          MODEL_PATH="/tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/model"
+          if [ -d "$MODEL_PATH" ]; then
+            echo "Model artifacts found at: $MODEL_PATH"
+            
+            # Create build directory and copy model
+            mkdir -p docker_build/model
+            cp -r "$MODEL_PATH"/* docker_build/model/
+            
+            # Create Dockerfile using echo instead of heredoc
+            cd docker_build
+            echo "FROM python:3.9-slim" > Dockerfile
+            echo "WORKDIR /app" >> Dockerfile
+            echo "RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*" >> Dockerfile
+            echo "RUN pip install mlflow==2.10.2 pandas scikit-learn" >> Dockerfile
+            echo "COPY model /app/model" >> Dockerfile
+            echo "EXPOSE 5000" >> Dockerfile
+            echo 'CMD ["mlflow", "models", "serve", "-m", "/app/model", "-h", "0.0.0.0", "-p", "5000", "--no-conda"]' >> Dockerfile
+            
+            # Build Docker image
+            if docker build -t air_quality_model .; then
+              echo "Docker image built successfully"
+              
+              # Login to Docker Hub
+              echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+              
+              # Tag and push
+              docker tag air_quality_model ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
+              docker push ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest
+              echo "Docker image pushed to ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest"
+              
+              # Logout
+              docker logout
+            else
+              echo "Docker build failed"
+              exit 1
+            fi
+            
+            cd ..
+          else
+            echo "Model artifacts not found - skipping Docker build"
+            exit 1
+          fi
+        continue-on-error: true
+
       - name: Training Summary
         run: |
           echo "=== MLflow Training Summary ==="
@@ -202,4 +263,7 @@ jobs:
           echo "Run ID: ${{ env.MLFLOW_RUN_ID }}"
           echo "Tracking URI: file:/tmp/mlruns"
           echo "Artifacts uploaded to GitHub Actions"
-          echo "Model training completed successfully"
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then
+            echo "Docker image: ${{ secrets.DOCKER_USERNAME }}/air_quality_model:latest"
+          fi
+          echo "Model training and deployment completed successfully"
