@@ -1,7 +1,9 @@
-name: MyMLProject
-conda_env: conda.yaml  # Merujuk ke file conda.yaml untuk environment
+name: air-quality-regression
+
+conda_env: conda.yaml
+
 entry_points:
   main:
-    command: "python modelling.py"  # Menjalankan script modelling.py
     parameters:
-      fit_intercept: {type: bool, default: true}  # Menambahkan fit_intercept sebagai parameter yang relevan
+      fit_intercept: {type: bool, default: True}
+    command: "python modelling.py --fit_intercept={fit_intercept}"
