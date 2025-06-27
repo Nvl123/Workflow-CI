@@ -21,7 +21,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
+          sudo apt-get install -y build-essential curl
 
       - name: Check Python and pip versions
         run: |
@@ -201,46 +201,82 @@ jobs:
           echo "Experiment ID: ${{ env.experiment_id }}"
           
           # Check if model artifacts exist
-          if [ -d "/tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/model" ]; then
-            echo "Model artifacts found, proceeding with Docker build..."
+          MODEL_PATH="/tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/model"
+          if [ -d "$MODEL_PATH" ]; then
+            echo "Model artifacts found at: $MODEL_PATH"
+            echo "Model artifacts contents:"
+            ls -la "$MODEL_PATH"
             
-            # Try MLflow docker build
-            if mlflow models build-docker \
-              -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" \
-              -n air_quality_model \
-              --enable-mlserver; then
-              echo "Docker image built successfully"
+            # Create a build directory and copy model artifacts
+            mkdir -p docker_build/model
+            cp -r "$MODEL_PATH"/* docker_build/model/
+            
+            # Create a simple Dockerfile in the build directory
+            cat > docker_build/Dockerfile << 'EOF'
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies and Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir mlflow==2.10.2 pandas scikit-learn
+
+# Copy model artifacts (from build context)
+COPY model /app/model
+
+# Expose port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
+
+# Run MLflow model server
+CMD ["mlflow", "models", "serve", "-m", "/app/model", "-h", "0.0.0.0", "-p", "5000", "--no-conda"]
+EOF
+            
+            # Build Docker image from the build directory
+            cd docker_build
+            echo "Building Docker image from: $(pwd)"
+            echo "Build context contents:"
+            ls -la
+            
+            if docker build -t air_quality_model .; then
+              echo "Docker image built successfully using alternative method"
+              
+              # Verify the image was created
+              echo "Verifying Docker image:"
+              docker images | grep air_quality_model
+              
+              # Simple test - just check if container can start
+              echo "Testing if Docker container can start..."
+              if timeout 30 docker run --rm air_quality_model python -c "import mlflow; print('MLflow import successful')"; then
+                echo "Docker image test passed - MLflow is working in container"
+              else
+                echo "Docker image test warning - there might be issues with the container"
+              fi
+              
             else
-              echo "MLflow Docker build failed, trying alternative approach..."
-              
-              # Alternative: Create a simple Dockerfile
-              cat > Dockerfile << EOF
-          FROM python:3.9-slim
-          
-          WORKDIR /app
-          
-          # Install MLflow and dependencies
-          RUN pip install mlflow==2.10.2 pandas scikit-learn
-          
-          # Copy model artifacts
-          COPY /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/model /app/model
-          
-          # Expose port
-          EXPOSE 5000
-          
-          # Run MLflow model server
-          CMD ["mlflow", "models", "serve", "-m", "/app/model", "-h", "0.0.0.0", "-p", "5000"]
-          EOF
-              
-              # Build Docker image manually
-              docker build -t air_quality_model .
-              echo "Alternative Docker image built successfully"
+              echo "Alternative Docker build also failed"
+              exit 1
             fi
+            
+            cd ..
+            
           else
-            echo "Model artifacts not found at /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/model"
-            echo "Listing available artifacts..."
-            ls -la /tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts/ || echo "No artifacts directory found"
-            echo "Skipping Docker build"
+            echo "Model artifacts not found at: $MODEL_PATH"
+            echo "Checking available artifacts..."
+            ARTIFACTS_DIR="/tmp/mlruns/${{ env.experiment_id }}/${{ env.MLFLOW_RUN_ID }}/artifacts"
+            if [ -d "$ARTIFACTS_DIR" ]; then
+              echo "Artifacts directory exists, contents:"
+              find "$ARTIFACTS_DIR" -type f
+            else
+              echo "No artifacts directory found"
+            fi
+            echo "Skipping Docker build - no model artifacts"
+            exit 1
           fi
         continue-on-error: true
 
