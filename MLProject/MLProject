@@ -1,6 +1,9 @@
+name: air_quality_model
+
+conda_env: conda.yaml
+
 entry_points:
   main:
     parameters:
       fit_intercept: {type: bool, default: True}
-    command: "python modelling.py --fit_intercept={fit_intercept}"
-    conda: false  
+    command: "python train.py --fit_intercept {fit_intercept}"
