@@ -44,12 +44,12 @@ jobs:
         cp MLProject/python_env.yaml /tmp/model_artifacts/python_env.yaml
         cp MLProject/requirements.txt /tmp/model_artifacts/requirements.txt
 
-    # Jalankan training script langsung (bukan via MLflow project)
-    - name: Run training script
+   
+    # Jalankan MLflow project (training via MLflow)
+    - name: Run MLflow project training
       run: |
-        cd MLProject
-        export MLFLOW_TRACKING_URI=file:/tmp/mlruns  # Set URI untuk file-based tracking
-        python modelling.py --fit_intercept=True
+        export MLFLOW_TRACKING_URI=file:/tmp/mlruns
+        mlflow run MLProject -P fit_intercept=True
 
     # Tunggu lebih lama untuk memastikan MLflow run selesai
     - name: Wait for MLflow run to complete
